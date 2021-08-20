@@ -5,6 +5,8 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 
+torch.manual_seed(242)
+
 TARGETS = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
 
 class NNForMnist(nn.Module):

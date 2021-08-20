@@ -14,10 +14,13 @@ title_data, tasks_data = prepare(['/home/benq/Документы/Rushan/SchoolPr
 #
 cv2.waitKey(0)
 
-#print(get_predictions_num(tasks_data['test_task.png'][3]))
+if tasks_data['test_task.png'][8][1]:
+    print(get_predictions_text(tasks_data['test_task.png'][8][0]))
+else:
+    print(get_predictions_num(tasks_data['test_task.png'][8][0]))
 
-for i in range(len(tasks_data['test_task.png'][7])):
-    cv2.imwrite('./' + str(i) + '.jpg', tasks_data['test_task.png'][7][i])
+#for i in range(len(tasks_data['test_task.png'][8])):
+#    cv2.imwrite('./' + str(i) + '.jpg', tasks_data['test_task.png'][8][i])
 
 
 

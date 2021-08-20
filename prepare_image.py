@@ -2,13 +2,37 @@ import cv2
 import numpy as np
 import os
 import torch
+import torchvision
 import PIL
+from read_answers import read_answers
 from PIL import ImageTk, Image, ImageDraw
 import os, re, math, json, shutil, pprint
 import PIL.Image, PIL.ImageFont, PIL.ImageDraw
 import operator
 from scipy.ndimage.morphology import binary_dilation
 import imutils
+
+transform=torchvision.transforms.Compose([
+                               torchvision.transforms.ToTensor(),
+                               torchvision.transforms.Normalize(
+                                 (0.1307,), (0.3081,))
+                             ])
+
+
+def preprocess_for_text(roi):
+    roi = cv2.copyMakeBorder(roi, 25, 25, 25, 25, cv2.BORDER_CONSTANT, None, 0)
+    roi = cv2.resize(roi, (28, 28))
+    #kernel = np.zeros((2, 2))
+    #kernel.fill(255)
+    #roi = cv2.erode(roi, kernel)
+    roi = cv2.normalize(roi, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    return np.array([roi])
+
+
+def preprocess_for_num(roi):
+    roi = cv2.copyMakeBorder(roi, 15, 15, 15, 15, cv2.BORDER_CONSTANT, None, 0)
+    return transform(cv2.resize(roi, (28, 28))).numpy()
+
 
 def split_to_cell(row, num_of_cells=17, text=False):
     list_of_cells = []
@@ -19,54 +43,43 @@ def split_to_cell(row, num_of_cells=17, text=False):
     for i in range(num_of_cells):
         imgCell = row[0 : w, start_point : start_point + div_w]
         imgCell = cv2.resize(imgCell, (128, 128))
-        #pim = Image.fromarray(imgCell.astype('uint8'))
-        #pim.show()
-
-        #raise TypeError
-
+        
         grayImgCell = cv2.cvtColor(imgCell, cv2.COLOR_BGR2GRAY)
         grayImgCell = cv2.GaussianBlur(grayImgCell, (7, 7), 0)
-        #pim = Image.fromarray(grayImgCell.astype('uint8'))
-        #pim.show()
 
         ret, grayImgCell = cv2.threshold(grayImgCell, 140, 255, cv2.THRESH_BINARY_INV)
-        #PIL_image = Image.fromarray(thresh1.astype('uint8'))
-        #PIL_image.show()
         
         if not text:
             grayImgCell = cv2.dilate(grayImgCell, None, iterations=1)
-        #pim = Image.fromarray(dilateImg.astype('uint8'))
-        #pim.show(str())
 
         cnts = cv2.findContours(grayImgCell.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[1] if imutils.is_cv3() else cnts[0]
 
-        original = imgCell.copy()
-
         for cnt in cnts:
-            if (cv2.contourArea(cnt) < 125):
+            if (cv2.contourArea(cnt) < 115):
                 continue
 
             x, y, w, h = cv2.boundingRect(cnt)
             roi = grayImgCell[y:y+h, x:x+w]
             
             if text:
-                roi = cv2.copyMakeBorder(roi, 25, 25, 25, 25, cv2.BORDER_CONSTANT, None, 0)
-
-            #cv2.imshow('yay', roi)
-            
-            list_of_cells.append(cv2.resize(roi, (28, 28)))
+                list_of_cells.append(preprocess_for_text(roi))
+                #list_of_cells.append(preprocess_for_text(roi))
+            else:
+                list_of_cells.append(preprocess_for_num(roi))
 
         start_point += div_w + 1
 
-    #return torch.tensor(list_of_cells)
-    return list_of_cells
+    return torch.tensor(list_of_cells), text
+    #return list_of_cells
 
 
 def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
     segmented_data = dict()
 
     for i, y in enumerate(list_img):
+        answers_frame = read_answers()
+
         img = cv2.imread(path + "/" + y)
         img = cv2.resize(img, (w, h))
         h, w, c = img.shape
@@ -85,12 +98,10 @@ def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
         M, _ = cv2.findHomography(srcPoints, dstPoints, cv2.RANSAC, 5.0)
         imgScan = cv2.warpPerspective(img, M, (w, h))
 
-        #cv2.imshow('yay', imgScan)
-
         task_num = 1
         error_num = 101
         
-        for x, r in enumerate(roi):            
+        for x, r in enumerate(roi):
             imgCrop = imgScan[r[0][1]:r[1][1], r[0][0]:r[1][0]]
 
             h2, w2, c2 = imgCrop.shape
@@ -98,19 +109,27 @@ def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
             if x < 8:
                 div_h = h2 // 5
                 for k in range(5):
+                    isText = False
+                    try:
+                        ans = answers_frame.iloc[5*x + k]['Ответ']
+                        float(ans)
+                    except ValueError:
+                        isText = True
+                    except IndexError:
+                        return segmented_data
+
+
                     imgRow = imgScan[r[0][1] + start_point : r[0][1] + start_point + div_h, r[0][0] : r[1][0]]
                     start_point += div_h
-                    segmented_data[y][task_num] = split_to_cell(imgRow)
+                    segmented_data[y][task_num] = split_to_cell(imgRow, text=isText)
                     task_num += 1
-
-                    #cv2.imshow('la' + r[3] + str(x), imgRow)
             else:
                 div_h = h2 // 3
                 for k in range(3):
                     imgRow = imgScan[r[0][1] + start_point : r[0][1] + start_point + div_h, r[0][0] : r[1][0]]
                     start_point += div_h
                     segmented_data[y][error_num] = split_to_cell(imgRow)
-                    error_num += 1 # to do: implement better idea for error fixing rows
+                    error_num += 1 ################################################### to do: implement better idea for error fixing rows
 
     return segmented_data
 
@@ -136,15 +155,13 @@ def segment_roi_title(list_img, path, kp1, des1, roi, orb, h, w):
         
         M, _ = cv2.findHomography(srcPoints, dstPoints, cv2.RANSAC, 5.0)
         imgScan = cv2.warpPerspective(img, M, (w, h))
-        
-        #cv2.imshow(y, imgScan)
-        
+                
         imgShow = imgScan.copy()
         imgMask = np.zeros_like(imgShow)
         
         for x, r in enumerate(roi):
             imgCrop = imgScan[r[0][1]:r[1][1], r[0][0]:r[1][0]]
-            segmented_data[y][r[3]] = split_to_cell(imgCrop, r[4])
+            segmented_data[y][r[3]] = split_to_cell(imgCrop, r[4], r[2])
     return segmented_data
 
 
@@ -152,12 +169,12 @@ def prepare(paths, tp='both'):
 
     assert tp in ['both', 'title', 'task'], 'Unsupported type: ' + tp
 
-    roi1 = [[(864, 238), (992, 296), 'text_num', 'grade', 3],
-            [(790, 398), (918, 454), 'text', 'subjectname', 3],
-            [(964, 396), (1254, 452), 'text_num', 'date', 6],
-            [(296, 690), (1600, 742), 'text', 'surname', 30],
-            [(294, 756), (1598, 812), 'text', 'name', 30],
-            [(296, 824), (1596, 880), 'text', 'middlename', 30]]
+    roi1 = [[(864, 238), (992, 296), False, 'grade', 3],
+            [(790, 398), (918, 454), True, 'subjectname', 3],
+            [(964, 396), (1254, 452), False, 'date', 6],
+            [(296, 690), (1600, 742), True, 'surname', 30],
+            [(294, 756), (1598, 812), True, 'name', 30],
+            [(296, 824), (1596, 880), True, 'middlename', 30]]
 
    # roi1 = [[(2560, 733), (2953, 900), 'text', 'grade', 3],
    #     [(2353, 1206), (2733, 1373), 'text', 'subject', 3],

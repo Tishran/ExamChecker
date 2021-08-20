@@ -4,6 +4,8 @@ import torchvision
 import torch.nn.functional as F
 from torch import nn
 
+torch.manual_seed(242)
+
 class NNForMnist(nn.Module):
   def __init__(self):
         super(NNForMnist, self).__init__()
@@ -29,7 +31,7 @@ net.train()
 
 def get_predictions_num(list_of_images):
     with torch.no_grad():
-        output = net(list_of_images.float())
+        output = net(list_of_images)
 
         result = []
         for i in range(len(output)):
