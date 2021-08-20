@@ -4,7 +4,7 @@ import torchvision
 import torch.nn.functional as F
 from torch import nn
 
-torch.manual_seed(242)
+torch.manual_seed(42)
 
 class NNForMnist(nn.Module):
   def __init__(self):

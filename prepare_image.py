@@ -21,17 +21,17 @@ transform=torchvision.transforms.Compose([
 
 def preprocess_for_text(roi):
     roi = cv2.copyMakeBorder(roi, 25, 25, 25, 25, cv2.BORDER_CONSTANT, None, 0)
+    roi = cv2.erode(roi, None, iterations=1)
     roi = cv2.resize(roi, (28, 28))
-    #kernel = np.zeros((2, 2))
-    #kernel.fill(255)
-    #roi = cv2.erode(roi, kernel)
     roi = cv2.normalize(roi, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     return np.array([roi])
+    #return roi
 
 
 def preprocess_for_num(roi):
     roi = cv2.copyMakeBorder(roi, 15, 15, 15, 15, cv2.BORDER_CONSTANT, None, 0)
     return transform(cv2.resize(roi, (28, 28))).numpy()
+    #return cv2.resize(roi, (28, 28))
 
 
 def split_to_cell(row, num_of_cells=17, text=False):
@@ -49,14 +49,17 @@ def split_to_cell(row, num_of_cells=17, text=False):
 
         ret, grayImgCell = cv2.threshold(grayImgCell, 140, 255, cv2.THRESH_BINARY_INV)
         
-        if not text:
-            grayImgCell = cv2.dilate(grayImgCell, None, iterations=1)
+        iterr = 1
+        if text:
+            iterr = 2
+
+        grayImgCell = cv2.dilate(grayImgCell, None, iterations=iterr)
 
         cnts = cv2.findContours(grayImgCell.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[1] if imutils.is_cv3() else cnts[0]
 
         for cnt in cnts:
-            if (cv2.contourArea(cnt) < 115):
+            if (cv2.contourArea(cnt) < 170):
                 continue
 
             x, y, w, h = cv2.boundingRect(cnt)
@@ -64,14 +67,13 @@ def split_to_cell(row, num_of_cells=17, text=False):
             
             if text:
                 list_of_cells.append(preprocess_for_text(roi))
-                #list_of_cells.append(preprocess_for_text(roi))
             else:
                 list_of_cells.append(preprocess_for_num(roi))
 
         start_point += div_w + 1
 
     return torch.tensor(list_of_cells), text
-    #return list_of_cells
+    #return list_of_cells, text
 
 
 def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
