@@ -10,7 +10,7 @@ import torch
 import torchvision
 import PIL
 from read_answers import read_answers
-from PIL import ImageTk, Image, ImageDraw
+from PIL import Image, ImageFilter
 import os, re, math, json, shutil, pprint
 import PIL.Image, PIL.ImageFont, PIL.ImageDraw
 import operator
@@ -23,7 +23,7 @@ transform=torchvision.transforms.Compose([
                                  (0.1307,), (0.3081,))
                              ])
 
-cells_coors = [[(6, 5), (39, 60)],
+CELLS_COORS = ([[(6, 5), (39, 60)],
         [(48, 5), (82, 60)],
         [(92, 5), (127, 60)],
         [(134, 5), (168, 60)],
@@ -52,79 +52,125 @@ cells_coors = [[(6, 5), (39, 60)],
         [(1135, 5), (1167, 60)], 
         [(1180, 5), (1211, 60)], 
         [(1222, 5), (1255, 60)], 
-        [(1265, 5), (1299, 60)]]
+        [(1265, 5), (1299, 60)]],
 
-WIDTH_OF_ROW = 1305 #<===== trouble linked with this variable
+        [[(3, 0), (36, 60)],
+        [(44, 0), (78, 60)], 
+        [(87, 0), (120, 60)],
+        [(129, 0), (162, 60)],
+        [(171, 0), (203, 60)],
+        [(213, 0), (246, 60)],
+        [(254, 0), (288, 60)],
+        [(296, 0), (331, 60)], 
+        [(339, 0), (373, 60)], 
+        [(379, 0), (414, 60)], 
+        [(423, 0), (457, 60)], 
+        [(464, 0), (497, 60)], 
+        [(506, 0), (541, 60)], 
+        [(549, 0), (582, 60)], 
+        [(591, 0), (624, 60)], 
+        [(633, 0), (665, 60)], 
+        [(674, 0), (706, 60)]])
+
+def imageprepare(img):
+    """
+    This function returns the pixel values.
+    The imput is a png file location.
+    """
+    im = Image.fromarray(img)
+    width = float(im.size[0])
+    height = float(im.size[1])
+    newImage = Image.new('L', (28, 28), (0))  # creates white canvas of 28x28 pixels
+
+    if width > height:  # check which dimension is bigger
+        # Width is bigger. Width becomes 20 pixels.
+        nheight = int(round((20.0 / width * height), 0))  # resize height according to ratio width
+        if (nheight == 0):  # rare case but minimum is 1 pixel
+            nheight = 1
+            # resize and sharpen
+        img = im.resize((20, nheight), Image.ANTIALIAS).filter(ImageFilter.SHARPEN)
+        wtop = int(round(((28 - nheight) / 2), 0))  # calculate horizontal position
+        newImage.paste(img, (4, wtop))  # paste resized image on white canvas
+    else:
+        # Height is bigger. Heigth becomes 20 pixels.
+        nwidth = int(round((20.0 / height * width), 0))  # resize width according to ratio height
+        if (nwidth == 0):  # rare case but minimum is 1 pixel
+            nwidth = 1
+            # resize and sharpen
+        img = im.resize((nwidth, 20), Image.ANTIALIAS).filter(ImageFilter.SHARPEN)
+        wleft = int(round(((28 - nwidth) / 2), 0))  # caculate vertical pozition
+        newImage.paste(img, (wleft, 4))  # paste resized image on white canvas
+
+    return np.array(newImage)
 
 
-def preprocess_for_text(roi):
-    roi = cv2.copyMakeBorder(roi, 25, 25, 25, 25, cv2.BORDER_CONSTANT, None, 0)
-    roi = cv2.dilate(roi, None, iterations=2)
-    roi = cv2.erode(roi, None, iterations=2)
-    roi = cv2.resize(roi, (28, 28))
-    ##roi = cv2.normalize(roi, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-    ##return np.array([roi])
-    return roi
+def cleaning(roi):
+    opening = roi.copy()
+    cnts = cv2.findContours(opening, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+    for c in cnts:
+        area = cv2.contourArea(c)
+        if area < 150:
+            cv2.drawContours(opening, [c], -1, 0, -1)
+
+    return opening
 
 
-def preprocess_for_num(roi):
-    roi = cv2.copyMakeBorder(roi, 15, 15, 15, 15, cv2.BORDER_CONSTANT, None, 0)
-    ##return transform(cv2.resize(roi, (28, 28))).numpy()
-    return cv2.resize(roi, (28, 28))
+def preprocess(roi):
+    roi = cleaning(roi)
+
+    if np.sum(roi != 0) < 150:
+        return []
+
+    roi = imageprepare(roi)
+
+    return transform(roi).numpy()
+    #return roi
 
 
 def split_to_cell(row, num_of_cells=17, text=False):
-    global cells_coors
-
     list_of_cells = []
 
-    #h, w, c = row.shape
-    #div_w = w // num_of_cells
-    #start_point = 0
-
-    row = cv2.resize(row, (WIDTH_OF_ROW, 60))
+    cells_coors = CELLS_COORS[0]
+    if num_of_cells == 17:
+        row = cv2.resize(row, (707, 60))
+        cells_coors = CELLS_COORS[1]
+    elif num_of_cells == 3:
+        row = cv2.resize(row, (130, 60))
+    elif num_of_cells == 20:
+        row = cv2.resize(row, (1305, 60))
 
     for i in range(num_of_cells):
-        ##imgCell = row[0 : w, start_point : start_point + div_w]
         imgCell = row[cells_coors[i][0][1] : cells_coors[i][1][1], cells_coors[i][0][0] : cells_coors[i][1][0]]
-        #imgCell = cv2.resize(imgCell, (128, 128))
-        imgCell = cv2.resize(imgCell, (256, 256))
+        imgCell = cv2.resize(imgCell, (128, 128))
         
         grayImgCell = cv2.cvtColor(imgCell, cv2.COLOR_BGR2GRAY)
-        grayImgCell = cv2.GaussianBlur(grayImgCell, (7, 7), 0)
+        grayImgCell = cv2.GaussianBlur(grayImgCell, (9, 9), 0)
 
         ret, grayImgCell = cv2.threshold(grayImgCell, 140, 255, cv2.THRESH_BINARY_INV) ## maybe change
         
-        iterr = 1
-        if text:
-            iterr = 2
+        iterr = 2
+        if not text:
+            iterr = 1
+            grayImgCell = cv2.dilate(grayImgCell, None, iterations=iterr)
 
-        grayImgCell = cv2.dilate(grayImgCell, None, iterations=iterr)
+        margin_top = 5
+        margin_left = 10
+        grayImgCell = grayImgCell[margin_top:-margin_top, margin_left:-margin_left]
 
-        margin_top = 20
-        margin_left = 20
-        grayImgCell = grayImgCell[margin_top:-(margin_top-15), margin_left:-margin_left]
+        res = preprocess(grayImgCell)
+        if len(res) > 0:
+            list_of_cells.append(res)
 
-        if np.sum(grayImgCell != 0) < 600:
-            continue
-
-        if text:
-            list_of_cells.append(preprocess_for_text(grayImgCell))
-        else:
-            list_of_cells.append(preprocess_for_num(grayImgCell))
-
-    ##return torch.tensor(list_of_cells), text
-    return list_of_cells, text
+    return torch.tensor(list_of_cells), text
+    #return list_of_cells, text
 
 
 def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
-    global WIDTH_OF_ROW
-
     segmented_data = dict()
 
     for i, y in enumerate(list_img):
         key = int(re.findall(r'\d+', y)[0])
-        print(key)
 
         answers_frame = read_answers()[key]
 
@@ -145,8 +191,6 @@ def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
         
         M, _ = cv2.findHomography(srcPoints, dstPoints, cv2.RANSAC, 5.0)
         imgScan = cv2.warpPerspective(img, M, (w, h))
-    
-        #cv2.imshow('task', imgScan)
 
         task_num = 1
         error_num = 101
@@ -157,8 +201,6 @@ def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
             h2, w2, c2 = imgCrop.shape
             start_point = 0
             if x < 8:
-                WIDTH_OF_ROW = 707
-
                 div_h = h2 // 5
                 for k in range(5):
                     isText = False
@@ -173,28 +215,24 @@ def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
                     imgRow = imgScan[r[0][1] + start_point : r[0][1] + start_point + div_h, r[0][0] : r[1][0]]
                     start_point += div_h
 
-                    print(imgRow.shape)
-
                     segmented_data[key][task_num] = split_to_cell(imgRow, text=isText)
                     task_num += 1
             else:
-                WIDTH_OF_ROW = 725
+                segmented_data[key][error_num] = dict()
 
-                div_h = h2 // 3
-                for k in range(3):
-                    imgRow = imgScan[r[0][1] + start_point : r[0][1] + start_point + div_h, r[0][0] : r[1][0]]
-                    print(imgRow.shape)
+                imgNumOfText = imgScan[r[0][0][0] : r[0][1][0], r[0][0][1] : r[0][1][1]]
+                segmented_data[key][error_num]['num_of_task'] = split_to_cell(imgNumOfText)
 
-                    start_point += div_h
-                    segmented_data[key][error_num] = split_to_cell(imgRow)
-                    error_num += 1 ################################################### to do: implement better idea for error fixing rows
+
+                imgRow = imgScan[r[1][0][0] : r[1][1][0], r[1][0][1] : r[1][1][1]]
+    
+                segmented_data[key][error_num]['answer'] = split_to_cell(imgRow)
+                error_num += 1
 
     return segmented_data
 
 
 def segment_roi_title(list_img, path, kp1, des1, roi, orb, h, w):
-    global WIDTH_OF_ROW
-
     segmented_data = dict()
 
     for i, y in enumerate(list_img):
@@ -202,6 +240,7 @@ def segment_roi_title(list_img, path, kp1, des1, roi, orb, h, w):
 
         img = cv2.imread(path + "/" + y)
         img = cv2.resize(img, (w, h))
+
         h, w, c = img.shape
         segmented_data[key] = dict()
 
@@ -221,12 +260,9 @@ def segment_roi_title(list_img, path, kp1, des1, roi, orb, h, w):
         for x, r in enumerate(roi):
             imgCrop = imgScan[r[0][1]:r[1][1], r[0][0]:r[1][0]]
 
-            if r[3] == 'grade':
-                WIDTH_OF_ROW = 130
-            else:
-                WIDTH_OF_ROW = 1305
 
             segmented_data[key][r[3]] = split_to_cell(imgCrop, num_of_cells=r[4], text=r[2])
+
     return segmented_data                                                   
                                                                            
                                                                             
@@ -234,8 +270,7 @@ def prepare(paths, tp='both'):
                                                                             
     assert tp in ['both', 'title', 'task'], 'Unsupported type: ' + tp       
                                                                             
-    roi1 = [[(864, 238), (992, 296), False, 'grade', 3],                    
-            [(296, 690), (1600, 742), True, 'surname', 30],                 
+    roi1 = [[(296, 690), (1600, 742), True, 'surname', 30],                 
             [(294, 756), (1598, 812), True, 'name', 30],                    
             [(296, 824), (1596, 880), True, 'middlename', 30]]              
 
@@ -246,9 +281,13 @@ def prepare(paths, tp='both'):
            [(927, 587), (1634, 882), 'text', '21-25'], 
            [(927, 912), (1634, 1207), 'text', '26-30'],
            [(927, 1244), (1634, 1539), 'text', '31-35'],
-           [(927, 1569), (1634, 1862), 'text', '36-40'],
-           [(127, 1954), (852, 2119), 'text', 'err1'],
-           [(909, 1954), (1632, 2117), 'err2', 'text']]
+           [(927, 1569), (1634, 1862), 'text', '36-40'],]
+           #[[(126, 1955), (195, 2002)], [(219, 1953), (851, 2002)], 'err1'],
+           #[[(128, 2015), (197, 2062)], [(219, 2015), (851, 2062)], 'err2'],
+           #[[(126, 2075), (195, 2122)], [(219, 2075), (851, 2119)], 'err3'],
+           #[[(908, 1955), (979, 2002)], [(999, 1955), (1633, 1999)], 'err4'],
+           #[[(911, 2015), (979, 2062)], [(1002, 2013), (1635, 2059)], 'err5'],
+           #[[(908, 2073), (979, 2119)], [(999, 2073), (1635, 2117)], 'err6']]
 
     query_image1 = cv2.imread('/home/benq/Документы/Rushan/SchoolProject/queries/query_title.png')
     h1, w1, c1 = query_image1.shape

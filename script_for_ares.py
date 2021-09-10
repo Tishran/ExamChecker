@@ -1,7 +1,7 @@
 import cv2
 import random
 
-scale = 0.4
+scale = 0.45
 circles = []
 counter = 0
 counter2 = 0
@@ -20,17 +20,19 @@ def mousePoints(event, x, y, flags, params):
             myColor = (random.randint(0, 2) * 200, random.randint(0, 2) * 200, random.randint(0, 2) * 200)
         elif counter == 1:
             point2 = int(x//scale), int(y//scale)
-            typee = input('Enter Type ')
+            #typee = input('Enter Type ')
             name = input('Enter Name ')
-            myPoints.append([point1, point2, typee, name])
+            myPoints.append([point1, point2])
             counter = 0
 
         circles.append([x, y, myColor])
         counter2 += 1
 
 img = cv2.imread('/home/benq/Документы/Rushan/SchoolProject/queries/query_task.png')
-#img = cv2.resize(img, (3000, 4000), None)
 img = cv2.resize(img, (0, 0), None, scale, scale)
+print(img.shape)
+#img = cv2.resize(img, (3000, 4000), None)
+#img = cv2.resize(img, (0, 0), None, scale, scale)
 
 while True:
     for x, y, color in circles:

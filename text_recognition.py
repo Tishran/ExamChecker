@@ -5,9 +5,9 @@ import torchvision
 from torch import nn
 import torch.nn.functional as F
 
-#torch.manual_seed(242)
+torch.manual_seed(55)
 
-TARGETS = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+TARGETS = "-АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
 
 class NNForMnist(nn.Module):
   def __init__(self):
@@ -18,7 +18,7 @@ class NNForMnist(nn.Module):
         self.conv4_bn = nn.BatchNorm2d(128)
         self.conv2_drop = nn.Dropout2d()
         self.fc1 = nn.Linear(4*4*128, 100)
-        self.fc2 = nn.Linear(100, 33)
+        self.fc2 = nn.Linear(100, 34)
 
   def forward(self, x):
         x = F.relu(F.max_pool2d(self.conv1(x), 2))
@@ -31,7 +31,7 @@ class NNForMnist(nn.Module):
         return F.log_softmax(x)
 
 net = NNForMnist()
-network_state_dict = torch.load('./model_new_text.pth')
+network_state_dict = torch.load('./model_text.pth')
 net.load_state_dict(network_state_dict)
 net.eval()
 
