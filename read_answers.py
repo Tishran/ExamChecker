@@ -2,7 +2,7 @@ import os
 import re
 import pandas as pd
 
-path = './answersTab'
+path = './keys'
 file_names = os.listdir(path)
 
 def read_answers():

@@ -1,7 +1,3 @@
-########### to do: implement better idea of grade dection and change errors field detection
-
-
-
 import cv2
 import numpy as np
 import os
@@ -217,17 +213,17 @@ def segment_roi_task(list_img, path, kp1, des1, roi, orb, h, w):
 
                     segmented_data[key][task_num] = split_to_cell(imgRow, text=isText)
                     task_num += 1
-            else:
-                segmented_data[key][error_num] = dict()
+            #else:
+            #    segmented_data[key][error_num] = dict()
 
-                imgNumOfText = imgScan[r[0][0][0] : r[0][1][0], r[0][0][1] : r[0][1][1]]
-                segmented_data[key][error_num]['num_of_task'] = split_to_cell(imgNumOfText)
+            #    imgNumOfText = imgScan[r[0][0][0] : r[0][1][0], r[0][0][1] : r[0][1][1]]
+            #    segmented_data[key][error_num]['num_of_task'] = split_to_cell(imgNumOfText)
 
 
-                imgRow = imgScan[r[1][0][0] : r[1][1][0], r[1][0][1] : r[1][1][1]]
+            #    imgRow = imgScan[r[1][0][0] : r[1][1][0], r[1][0][1] : r[1][1][1]]
     
-                segmented_data[key][error_num]['answer'] = split_to_cell(imgRow)
-                error_num += 1
+            #    segmented_data[key][error_num]['answer'] = split_to_cell(imgRow)
+            #    error_num += 1
 
     return segmented_data
 

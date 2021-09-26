@@ -8,9 +8,8 @@ import os
 import re
 
 
-title_data, tasks_data = prepare(['/home/benq/Документы/Rushan/SchoolProject/blanks/1/300', '/home/benq/Документы/Rushan/SchoolProject/blanks/2/300'])
+title_data, tasks_data = prepare(['/home/benq/Документы/Rushan/SchoolProject/answers/1', '/home/benq/Документы/Rushan/SchoolProject/answers/2'])
 
-#tasks_data = prepare(['/home/benq/Документы/Rushan/SchoolProject/blanks/2/300'], tp='task')
 result_path = './results/'
 
 true_answers = read_answers()
